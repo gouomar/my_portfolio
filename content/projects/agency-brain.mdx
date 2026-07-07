@@ -1,0 +1,222 @@
+---
+title: Agency Brain
+slug: agency-brain
+oneLiner: A multilingual WhatsApp assistant for a study-abroad agency handling student questions in French, Arabic, and Darija. Replaced two hardcoded routing rules with constrained-decoding classifiers, pushing routing accuracy from 82% to 89% and keeping 50% of traffic away from the LLM entirely - cutting generation costs in half.
+year: "2024"
+role: Solo · built for a real Moroccan study-abroad agency workflow
+tags: ["RAG", "constrained decoding", "FastAPI", "ChromaDB", "Python"]
+featured: true
+order: 1
+depth: deep
+links:
+  github: https://github.com/gouomar/rag_agency
+---
+
+_Students text in French, Arabic, and Darija, at all hours, and expect a human-quality answer._
+
+The interesting work here isn't the model. It's the **orchestration**: knowing which of many moving pieces - a WhatsApp bridge, two small local classifiers, a vector store, a hosted LLM, a memory buffer - should make each decision, and wiring them so the whole thing behaves predictably even when one piece misbehaves.
+
+## The Problem
+
+A study-abroad agency in Morocco lives inside its WhatsApp inbox. Students fire off questions all day - _"chhal khasni nkhles bach n9ra f canada?"_, _"ما هي شروط الفيزا؟"_, _"bonjour, les universités disponibles au UK svp"_ - three languages and one romanized street dialect (Darija) braided together in a single thread. Every unanswered message at 11pm is a lost client.
+
+The naive build is one dumb pipe: forward every message to an LLM, return whatever comes back. It works in a demo and falls apart in production - you pay for a model call on _"salam"_, and you pay again when someone asks about the weather.
+
+So the real problem here was never generation. It was **orchestration**: deciding - cheaply and _reliably_ - which messages deserve an expensive answer and which can be handled for free, before a single dirham is spent.
+
+And here's the honest part most people get backwards: in the original system, **the expensive model never made those decisions at all.** The routing rested on two cheap heuristics - a keyword regex to spot greetings, and a single cosine-similarity number to guess whether a question was in scope. Those two heuristics _were_ the fragile part. This project is the story of replacing them with something trustworthy.
+
+## In Plain Terms
+
+A few words I'll use throughout, in plain language:
+
+- **Knowledge base (KB):** the agency's own documents - visa rules, tuition, university lists, deadlines. The assistant may answer _only_ from these. It never invents facts.
+- **In scope vs. out of scope:** a question is _in scope_ if the KB actually contains the answer (_"what are the fees for Canada?"_). It's _out of scope_ if it doesn't (_"what's the weather today?"_). Out-of-scope messages are politely handed to a human agent instead of guessed at.
+- **The three lanes:** every message ends up in exactly one of three paths - a **greeting** (free canned welcome), an **out-of-scope** question (free, handed to a human), or an **answerable** question (the _only_ path that pays for a Gemini call).
+- **Routing:** deciding which lane a message belongs in. Most of this case study is the story of making that one decision reliable.
+- **Constrained decoding:** forcing a language model's output to fit a fixed shape - one of a set of labels, or a specific JSON schema - _at generation time_, so it is literally incapable of returning anything you can't act on. This is the technique that replaced the two heuristics.
+
+## How It Works
+
+The routing isn't one decision - it's **two small constrained classifiers** placed at the two forks that used to be guesswork, with a cheap embedding-score shortcut in front of the second one so it only runs when it's actually needed.
+
+```text
+                         WhatsApp message
+                                │
+                                ▼
+                   ┌────────────────────────┐
+                   │   INTENT GATE  (yes/no) │   "ignoring any greeting,
+                   │   constrained decoding  │    is there ALSO a request?"
+                   └───────────┬─────────────┘   -> replaces the keyword regex
+              no (pure greeting)│ yes (a real question is in there)
+              ┌─────────────────┘                     │
+              ▼                                        ▼
+        ┌───────────┐                     ┌───────────────────────┐
+        │  welcome  │                     │  retrieve top-K chunks │
+        │  0 cost   │                     │  from the KB (e5-large)│
+        └───────────┘                     └───────────┬───────────┘
+                                                       ▼
+                                     ┌─────────────────────────────────┐
+                                     │  SCOPE GATE  (hybrid, 3 tiers)   │
+                                     │  1. active session? -> in scope  │
+                                     │  2. top score high -> in scope   │
+                                     │     top score low  -> out        │
+                                     │  3. gray band -> ask the         │
+                                     │     ANSWERABILITY classifier     │
+                                     │     (constrained yes/no)         │
+                                     └───────┬──────────────────┬───────┘
+                                    not answerable        answerable
+                                    ┌────────┘                  │
+                                    ▼                           ▼
+                             ┌─────────────┐          ┌───────────────────┐
+                             │  hand-off   │          │ Gemini writes the │
+                             │ to a human  │          │  cited answer     │
+                             │   0 cost    │          │ (user's language) │
+                             └─────────────┘          └───────────────────┘
+```
+
+**The Intent gate** runs first on the raw message. It doesn't pattern-match for greetings - it _decides_, in one constrained yes/no: _ignoring any greeting or thanks, does the message also ask for something?_ A pure _"salam"_ or _"chokran bzaf"_ answers **no** and gets a free welcome. A greeting glued to a real question - _"salam, les universités au Canada?"_ - answers **yes**, so the question underneath is never swallowed as smalltalk the way a regex would swallow it; it goes straight to the answer path.
+
+**The Scope gate** is deliberately _not_ one decision. Running a 1.5B model on every message is slow (~7s on CPU), and most messages don't need it - the retrieval score already screams the answer. So it's a three-tier funnel: an active conversation is trusted outright (so a bare follow-up like _"chhal taman?"_ isn't rejected in isolation); a confidently high or low top-chunk score decides instantly; and **only the ambiguous middle band `[0.60, 0.68)` actually pays for the Answerability classifier**, which reads the question _and_ the retrieved chunk together and judges whether the evidence really supports an answer. Only past all of that does Gemini get paid.
+
+That "spend the expensive check only where the cheap signal is uncertain" instinct is the whole design philosophy in one gate.
+
+## Architecture
+
+I split the system into five boundaries, drawn on paper before any code. The point of the split is that **each layer makes exactly one kind of decision and hands a clean result to the next** - the bridge never reasons, the classifiers never generate, the generator never routes.
+
+![Agency Brain architecture: five layers - a dumb Node bridge, a constrained-decoding routing layer, cross-lingual retrieval, Gemini generation, and per-session memory - each making exactly one kind of decision and handing a clean result to the next.](/diagrams/agency-brain.svg)
+
+| Layer | Role | Mechanism |
+|-------|------|-----------|
+| Bridge | WhatsApp I/O, nothing else | `whatsapp-web.js` + HTTP, zero AI logic |
+| Routing | The two decisions that used to be guesswork | `Qwen2.5-1.5B-Instruct` (local, CPU), output constrained via `outlines` |
+| Retrieval | Find evidence across languages | `multilingual-e5-large` → ChromaDB, top-K + scores |
+| Generation | Write the human-quality answer | Gemini 2.5 Flash, answerable lane only |
+| Memory | Contextual follow-ups | per-phone `ChatMemoryBuffer` |
+
+**Three decisions shaped this system, each chosen over the obvious alternative:**
+
+**Two constrained classifiers over two heuristics.** The old routing was a keyword regex and a single cosine-similarity float - both cheap, both brittle. I replaced each with a small local model whose output is **mechanically constrained** - to a fixed label for the yes/no gates, and to a typed JSON object for richer tags - so the router receives a structured verdict it can _always_ act on, never a hope. Crucially I did **not** reach for a big LLM as the judge: ask a general-purpose model "is this in scope, yes or no?" and it will eventually answer _"It depends what you mean by scope…"_ and break the router. Small model, locked output, guaranteed-parseable decision.
+
+**Retrieve-first over query-in-one-shot.** The original engine retrieved and generated in a single call - which meant the in-scope decision happened _after_ I'd already paid for the answer. Backwards. I split the pipeline into `retrieve()` and `generate()` so the answerability check can read the actual evidence (the top chunk and its score) _before_ anyone spends on generation. Evidence before spend.
+
+**A dumb bridge over a smart one.** The Node.js edge could have held routing logic. Keeping it deliberately brainless - it only relays text and a `session_id` - means the entire intelligence of the system lives in one runtime: one place to reason about, one place to upgrade. The bridge's only job is to never lie to the student when the brain is down.
+
+## The Hard Parts
+
+You can't pipe a trilingual WhatsApp inbox into an LLM and hope. Four problems had to be solved on purpose.
+
+### The Darija Wall
+
+Off-the-shelf greeting detection assumes clean text in one language. Real messages are _"slm wach 3ndkom des bourses?"_ - romanized Arabic with French loanwords and no diacritics. A keyword regex catches `salam` and misses `slm`; it spots _"la bas?"_ never; and it can't tell a greeting glued to a real question (_"salam, les universités au Canada?"_) from a plain hello, so the question silently dies in the wrong lane.
+
+The fix was to stop pattern-matching and start _deciding_. The intent classifier reads the whole message - dialect and all - and emits a constrained yes/no on the real question underneath: _is there a request here at all?_ Because the decision is schema-locked, the greeting can never hide the question. In the benchmark, this is exactly the case the naive router loses and the classifier wins: _"salam, visa canada?"_ → the regex calls it smalltalk and drops it; the classifier routes it to the answer lane.
+
+### One Number Can't Carry a Decision
+
+The old in-scope check was a single threshold: if the top chunk's cosine score cleared `0.66`, answer; otherwise hand off. One number deciding everything breaks in exactly the cases that matter - and the measured data shows _how_ it breaks:
+
+- _"ما هي الجامعات المتاحة في كندا؟"_ ("which universities are available in Canada?") - a real, answerable question that the KB covers, but its embedding score lands at **0.618**, under 0.66, so the fixed threshold **wrongly rejects it**.
+- _"ما هي الوثائق المطلوبة للتقديم؟"_ ("what documents are required?") - same story, scores **0.634**, also wrongly handed off.
+
+Both Arabic questions in the eval set fail this way - the score is depressed for cross-lingual retrieval (Arabic query, English docs) even when the meaning matches perfectly. And you can't just _lower_ the threshold: the out-of-scope noise (_"what's the weather in Casablanca?"_ at 0.624) sits right in the same band, so a lower cutoff would start letting junk through into paid answers. A single number genuinely cannot separate these.
+
+The fix is a classifier that reads what the float can't: the question **and** the retrieved chunk together, then answers a constrained yes/no on whether the evidence actually supports the question. Because those two Arabic scores (0.618, 0.634) fall inside the gray band `[0.60, 0.68)`, the classifier is exactly what fires - and it recovers both. Semantic judgment where a raw score chokes; the cheap threshold everywhere else.
+
+### The Follow-Up Paradox
+
+A student asks about Canada, gets an answer, then sends _"chhal taman?"_ - "how much?". On its own that fragment is near-meaningless to a retriever; it scores low and a strict scope gate would reject a perfectly valid follow-up as out of scope.
+
+The fix is session-aware routing. A memory buffer is keyed to the student's phone number, and when an active conversation exists, the scope gate trusts context outright (tier 1 of the funnel) - letting Gemini resolve "how much?" against the Canada thread it already remembers, instead of judging the fragment in isolation.
+
+### Telling the Truth When the Brain Is Offline
+
+Two runtimes, one machine: WhatsApp lives in Node, the intelligence lives in Python, and they talk over localhost HTTP. If the Python brain is restarting or down, a naive bridge hangs the chat or swallows the message - the student just sees silence and assumes they've been ignored.
+
+So the bridge degrades loudly, not silently. Every call to the brain has a timeout, and a refused connection triggers a graceful, human-toned fallback in French (_"we're having a technical issue, try again shortly"_) instead of a frozen chat. The dumb pipe's one real responsibility is honesty.
+
+## Does It Actually Work?
+
+I built a reproducible benchmark over **28 hand-labeled messages** - 12 answerable, 10 smalltalk, 6 out-of-scope, spread across Darija (12), English (8), French (6), and Arabic (2) - and ran the exact same retrieval through both the old naive router and the constrained one. Everything below is measured, not claimed.
+
+### Routing accuracy - where the classifier wins, and where it doesn't
+
+| Router | Overall accuracy |
+|---|---|
+| Naive (greeting regex + fixed 0.66 similarity threshold) | **82%** |
+| Constrained-decoding classifiers | **89%** |
+
+The +7 points aren't spread evenly - they land precisely on the cases a fixed heuristic _structurally cannot_ handle:
+
+| By language | Naive | Constrained |
+|---|---|---|
+| Arabic | **0/2** | **2/2** |
+| Darija | 9/12 | 9/12 |
+| French | 6/6 | 6/6 |
+| English | 8/8 | 8/8 |
+
+| By lane | Naive | Constrained |
+|---|---|---|
+| answer | 9/12 | **12/12** |
+| smalltalk | 8/10 | 8/10 |
+| fallback | 6/6 | 5/6 |
+
+The naive router gets **every answerable Arabic question wrong** (the 0.618 / 0.634 threshold problem above) and drops greetings-with-questions like _"salam, visa canada?"_. The classifier fixes all of those - it goes 12/12 on the answer lane. It's not free, though: it trades one fallback case for the gain (a Darija joke that it over-eagerly tries to answer), which is the honest cost of a model that reasons instead of matches.
+
+### The real value of constrained decoding - and where it's a wash
+
+This is the finding I care most about, because it's the one most write-ups get wrong.
+
+On the **binary yes/no gates, constrained decoding shows no measurable advantage.** I ran the same prompts through the same model with and without constraints:
+
+| Decoding (binary yes/no gate) | Valid output |
+|---|---|
+| Free (unconstrained) | 100% |
+| Constrained | 100% |
+
+A 1.5B instruct model, asked "answer yes or no," already answers cleanly. Constraining it changes nothing you can measure. The value there is a _guarantee_ (no parser, no invalid label, holds under prompt changes) - not a delta.
+
+**The delta appears the instant the decision has structure.** I gave both paths the identical instruction to tag a query as a typed `{country, topic}` JSON object, and only varied whether decoding was constrained to the schema:
+
+| Decoding (structured `{country, topic}`) | Parseable as-is | Schema-valid after a lenient parser |
+|---|---|---|
+| Free (unconstrained) | **39%** | 93% |
+| **Constrained** | **100%** | **100%** - no parser, no validation code |
+
+Two concrete failure modes the constrained path makes impossible:
+
+- **61% of free outputs wrapped the JSON in markdown code fences.** Without hand-written cleanup, only 39% of them are usable as-is.
+- Even _after_ a forgiving parser that strips fences and grabs the first object, free decoding still fails on out-of-enum values it cannot repair - it emitted `"Canada"` (wrong case) and `"Morocco"` (not a valid option at all). Constrained decoding cannot produce either.
+
+> **The honest thesis:** constrained decoding's payoff isn't accuracy on trivial gates - it's that the moment your output has _structure_, it deletes an entire class of parse-and-validate bugs by construction. On a binary flag that's a nice guarantee; on a schema it's the difference between 39% and 100% usable.
+
+### Latency & cost
+
+| Metric | Value |
+|---|---|
+| Routing decision latency (CPU) | ~7.3s per decision |
+| Routing cost per 1,000 messages - local classifier | **$0.00** (self-hosted) |
+| Routing cost per 1,000 messages - if delegated to Gemini | ~$0.189 |
+| Inbound traffic that never reaches Gemini generation | **50%** (smalltalk 30% + out-of-scope 20%) |
+
+_Cost assumptions: Gemini 2.5 Flash at \$0.30/M input, \$2.50/M output; ~280 / ~480 input tokens per intent / scope decision; measured traffic mix. Latency is the raw CPU cost of the local judge - the price paid for keeping decisions at \$0 and on-box._
+
+## What I'd Do Differently
+
+- **Make the decision schemas pluggable.** Today the two gates emit fixed shapes; the `{country, topic}` tagger already proves the schema path works, so I'd declare all decisions as named schemas and add new ones (urgency, target country, lead temperature) without touching the generation path.
+- **Fold the follow-up rule into the classifier.** The "active session → trust context" bypass is still a hand-written Python branch. The cleaner end state feeds conversation-state straight into the answerability classifier, so one constrained decision covers it.
+- **Get the scope-gate latency down.** ~7s per gray-band decision on CPU is fine for a WhatsApp cadence but not great. A quantized model, batching, or a smaller distilled judge for the gate would cut it - the embedding shortcut already keeps most traffic away from it.
+- **Promote logging from a JSONL file to a real store.** The async interaction log is fine for one machine; an agency running this for months wants it in SQLite for actual lead analytics.
+
+## Stack & Links
+
+| | |
+|---|---|
+| Bridge | Node.js, `whatsapp-web.js`, axios |
+| API / Orchestration | Python, FastAPI, uvicorn |
+| Decision layer | Constrained decoding via `outlines` on `Qwen/Qwen2.5-1.5B-Instruct` (local, CPU) |
+| Retrieval | LlamaIndex, ChromaDB (persistent) |
+| Embeddings | `intfloat/multilingual-e5-large` (local, 1024-d) |
+| Generation | Google Gemini 2.5 Flash (answer lane only) |
+| Source | [github.com/gouomar/rag_agency](https://github.com/gouomar/rag_agency) |
