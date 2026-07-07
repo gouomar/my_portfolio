@@ -1,0 +1,61 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#1e1e2e',
+    'primaryTextColor': '#cdd6f4',
+    'primaryBorderColor': '#89b4fa',
+    'lineColor': '#a6adc8',
+    'secondaryColor': '#313244',
+    'tertiaryColor': '#11111b',
+    'fontFamily': 'monospace',
+    'clusterBkg': '#181825',
+    'clusterBorder': '#45475a'
+  }
+}}%%
+flowchart TB
+    subgraph BRIDGE[" Bridge Layer · Node.js "]
+        direction LR
+        WA[whatsapp-web.js<br/>QR session] --> PIPE[Dumb HTTP pipe<br/>session_id = phone]
+    end
+
+    subgraph ROUTE[" Routing Layer · constrained decoding "]
+        direction LR
+        INT{{Intent gate<br/>yes / no — is there a request?}}
+        ANS{{Answerability gate<br/>yes / no — do chunks answer it?}}
+        INT -->|no| GREET[Static welcome]
+        ANS -->|no| FALL[Human hand-off]
+    end
+
+    subgraph RETR[" Retrieval Layer "]
+        direction LR
+        EMB[multilingual-e5-large<br/>1024-d, FR/AR/EN/Darija] --> DB[(ChromaDB<br/>persistent)]
+    end
+
+    subgraph GEN[" Generation Layer "]
+        direction LR
+        LLM[Gemini 2.5 Flash<br/>answer only]
+    end
+
+    subgraph MEM[" Memory Layer "]
+        direction LR
+        BUF[(Per-session buffers<br/>keyed by phone)]
+    end
+
+    PIPE ==> INT
+    INT -->|yes| EMB
+    DB -.->|score shortcut · then top-1 chunk + question| ANS
+    ANS -->|yes| LLM
+    BUF <-.->|history bypass + context| LLM
+    LLM ==> PIPE
+
+    classDef bridgeStyle fill:#313244,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
+    classDef routeStyle fill:#313244,stroke:#f9e2af,stroke-width:2px,color:#cdd6f4
+    classDef retrStyle fill:#313244,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4
+    classDef genStyle fill:#45475a,stroke:#f38ba8,stroke-width:2px,color:#f38ba8
+    classDef memStyle fill:#313244,stroke:#cba6f7,stroke-width:2px,color:#cdd6f4
+
+    class WA,PIPE bridgeStyle
+    class INT,ANS,GREET,FALL routeStyle
+    class EMB,DB retrStyle
+    class LLM genStyle
+    class BUF memStyle

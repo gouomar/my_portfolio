@@ -1,0 +1,49 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#1e1e2e',
+    'primaryTextColor': '#cdd6f4',
+    'primaryBorderColor': '#89b4fa',
+    'lineColor': '#a6adc8',
+    'secondaryColor': '#313244',
+    'tertiaryColor': '#11111b',
+    'fontFamily': 'monospace',
+    'clusterBkg': '#181825',
+    'clusterBorder': '#45475a'
+  }
+}}%%
+flowchart TB
+    subgraph IN[" Input & Parsing "]
+        direction LR
+        M["map.txt"]
+        P["Parser<br/>syntax + BFS connectivity"]
+        W["WorldConfig<br/>Pydantic models"]
+        M --> P --> W
+    end
+    subgraph ENG[" Planning Engine "]
+        direction LR
+        H["Backwards Dijkstra<br/>min-turn heuristic"]
+        A["Space-Time A*<br/>one drone at a time"]
+        R[(Reservation Tables<br/>node_res / edge_res)]
+        S["Solution<br/>List[SolutionTurn]"]
+        H --> A
+        A <--> R
+        A --> S
+    end
+    subgraph OUT[" Presentation "]
+        direction LR
+        C["CLI log"]
+        V["Ursina 3D replay"]
+    end
+
+    W ==> H
+    S --> C
+    S --> V
+
+    classDef inStyle fill:#313244,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
+    classDef engStyle fill:#313244,stroke:#cba6f7,stroke-width:2px,color:#cdd6f4
+    classDef outStyle fill:#313244,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4
+
+    class M,P,W inStyle
+    class H,A,R,S engStyle
+    class C,V outStyle

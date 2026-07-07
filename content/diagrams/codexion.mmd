@@ -1,0 +1,48 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#1e1e2e',
+    'primaryTextColor': '#cdd6f4',
+    'primaryBorderColor': '#89b4fa',
+    'lineColor': '#a6adc8',
+    'secondaryColor': '#313244',
+    'tertiaryColor': '#11111b',
+    'fontFamily': 'monospace',
+    'clusterBkg': '#181825',
+    'clusterBorder': '#45475a'
+  }
+}}%%
+flowchart TB
+    subgraph ORCH[" Orchestration Layer "]
+        direction LR
+        P[Parse and validate input] --> A[Allocate memory<br/>init mutexes]
+        A --> SP[Spawn threads]
+        SP -.->|on stop| JN[Join threads<br/>free memory]
+    end
+
+    subgraph CTRL[" Global Control "]
+        direction LR
+        RULES[(t_rules<br/>master clock · limits · print mutex)]
+        MON{{Monitor thread<br/>polls last-compile times}}
+    end
+
+    subgraph ENGINE[" Concurrency Engine "]
+        direction LR
+        C[Coder threads 1..N]
+        D[(Dongle locks 1..N<br/>mutex + condition variable)]
+        C <-->|locks left & right dongle| D
+    end
+
+    ORCH ==> ENGINE
+    RULES -.->|global stop flag| C
+    MON -.->|triggers stop on burnout| RULES
+
+    classDef orchStyle fill:#313244,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
+    classDef ctrlStyle fill:#313244,stroke:#f9e2af,stroke-width:2px,color:#cdd6f4
+    classDef engineStyle fill:#313244,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4
+    classDef reaperStyle fill:#45475a,stroke:#f38ba8,stroke-width:2px,color:#f38ba8
+
+    class P,A,SP,JN orchStyle
+    class RULES ctrlStyle
+    class MON reaperStyle
+    class C,D engineStyle
