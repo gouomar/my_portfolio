@@ -12,7 +12,7 @@ export default function Home() {
       </a>
       <div className="mx-auto min-h-screen max-w-screen-xl px-6 py-12 md:px-12 md:py-20 lg:px-24 lg:py-0 lg:flex lg:justify-between lg:gap-12">
         <LeftPanel />
-        <main id="content" className="pt-24 lg:w-[52%] lg:py-24">
+        <main id="content" className="pt-24 lg:w-[56%] lg:py-24">
           <About />
           <Experience />
           <Projects />
