@@ -35,6 +35,7 @@ export function Projects() {
         {projects.map(({ frontmatter: p }) => (
           <li
             key={p.slug}
+            id={p.slug}
             className="group relative rounded-lg p-4 transition-colors hover:bg-surface-0/40 motion-reduce:transition-none"
           >
             <h3 className="flex items-baseline gap-1 font-medium text-text">
