@@ -27,7 +27,7 @@ export const experience: readonly ExperienceEntry[] = [
     image: "/images/1337.png",
   },
   {
-    period: "2022 - 2024",
+    period: "2023 - 2025",
     role: "CPGE MP (Maths & Physics)",
     org: "Classe Préparatoire",
     orgUrl: "https://www.cpge.ac.ma/",
