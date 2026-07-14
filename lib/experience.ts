@@ -17,7 +17,7 @@ export type ExperienceEntry = {
 
 export const experience: readonly ExperienceEntry[] = [
   {
-    period: "2024 - Present",
+    period: "2025 - Present",
     role: "Systems Programming Student",
     org: "1337 / UM6P",
     orgUrl: "https://1337.ma/en/",
