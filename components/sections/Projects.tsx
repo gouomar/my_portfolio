@@ -31,7 +31,7 @@ export function Projects() {
 
   return (
     <Section id="projects" title="Projects">
-      <ul className="space-y-2">
+      <ul className="space-y-4">
         {projects.map(({ frontmatter: p }) => (
           <li
             key={p.slug}
@@ -56,9 +56,9 @@ export function Projects() {
               </span>
             </h3>
 
-            <p className="mt-1 leading-relaxed text-subtext">{p.oneLiner}</p>
+            <p className="mt-2 text-sm leading-relaxed text-subtext">{p.oneLiner}</p>
 
-            <div className="relative z-10 mt-3 w-fit">
+            <div className="relative z-10 mt-4 w-fit">
               <TagPills tags={p.tags} />
             </div>
           </li>
@@ -70,7 +70,7 @@ export function Projects() {
         <h3 className="mb-4 font-mono text-xs uppercase tracking-widest text-overlay">
           Projects related to the club
         </h3>
-        <ul className="space-y-2">
+        <ul className="space-y-4">
           {clubProjects.map((p) => (
             <li
               key={p.slug}
@@ -96,9 +96,9 @@ export function Projects() {
                 )}
               </h3>
 
-              <p className="mt-1 leading-relaxed text-subtext">{p.oneLiner}</p>
+              <p className="mt-2 text-sm leading-relaxed text-subtext">{p.oneLiner}</p>
 
-              <div className="relative z-10 mt-3 w-fit">
+              <div className="relative z-10 mt-4 w-fit">
                 <TagPills tags={p.tags} />
               </div>
             </li>

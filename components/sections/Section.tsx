@@ -18,7 +18,7 @@ export function Section({
     <section
       id={id}
       aria-label={title}
-      className="scroll-mt-16 py-12 lg:py-20"
+      className="scroll-mt-16 py-16 lg:py-24"
     >
       <h2 className="mb-8 font-mono text-xs font-bold uppercase tracking-widest text-text lg:sr-only">
         {title}
