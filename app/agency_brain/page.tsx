@@ -15,31 +15,55 @@ export const metadata: Metadata = {
 
 /* ─── Side notes: personal commentary per section ──────────────────── */
 
-const sideNotes: Record<string, string> = {
-  "the-problem":
-    "This was day one frustration — the agency owner showed me a WhatsApp thread where 3 students got ghosted at 11pm because no one was awake to reply. That's when I knew this wasn't a 'fun AI project', it was a real business bleeding clients.",
-  "in-plain-terms":
-    "I wrote these definitions for myself first. Half the mistakes in v1 came from me confusing 'out of scope' with 'the model doesn't know' — they're different failure modes and need different handlers.",
-  "how-it-works":
-    "Drawing this diagram on paper was the moment I stopped being stuck. Once you see the two forks, you realize neither one needs a big model — just a small one that can't lie about its answer.",
-  "architecture":
-    "The 5-layer split isn't clever — it's me being paranoid. If any layer touches something it shouldn't, the whole system becomes untestable. Strict boundaries = easy debugging at 2am.",
-  "the-hard-parts":
-    "Everything below this line is what took 80% of the time. The happy path works in a weekend. Making it not break on Darija slang at midnight? That's the actual engineering.",
-  "darija-wall":
-    "I spent two days on a regex for Darija greetings before I gave up and let a model decide. The regex had 47 patterns. The model just… gets it. Sometimes the right abstraction is admitting you can't enumerate the problem.",
-  "one-number":
-    "This one hurt. The 0.66 threshold passed all my French test cases and I shipped it. Then an Arabic user showed up and it broke instantly. Lesson: your test set's language distribution IS your coverage.",
-  "results":
-    "28 messages isn't a lot. I know. But they're hand-picked adversarial cases — the exact edge cases where routing breaks. A bigger random sample would score higher and teach me less.",
-  "constrained-decoding-value":
-    "This is the finding I'm most proud of because it's counter-intuitive: constrained decoding doesn't help on yes/no. It only matters when you need structure. Most blog posts get this backwards.",
-  "latency-cost":
-    "7 seconds sounds awful but WhatsApp isn't Slack — people don't stare at typing indicators. They send and check back. The real constraint is cost, not latency, for this use case.",
-  "roadmap":
-    "If I rebuild this tomorrow I'd start with the schema system. The two gates were the MVP; the real product is 'add any decision without touching generation code.'",
-  "stack":
-    "Nothing exotic. The boring stack choice was deliberate — this needs to run on a single VPS in Morocco, not a Kubernetes cluster. Boring is maintainable.",
+const sideNotes: Record<string, { label: string; text: string }> = {
+  "the-problem": {
+    label: "the spark",
+    text: "Agency owner showed me a WhatsApp thread — 3 students ghosted at 11pm because no one was awake. That's not a 'fun AI project', that's a business bleeding clients in real time.",
+  },
+  "in-plain-terms": {
+    label: "note to self",
+    text: "I wrote these definitions for myself first. Half the v1 bugs came from confusing 'out of scope' with 'the model doesn't know.' They need completely different handlers.",
+  },
+  "how-it-works": {
+    label: "the paper napkin moment",
+    text: "Drew this on paper at a café. Once you see the two forks, you realize neither needs a big model — just a small one that literally cannot lie about its answer.",
+  },
+  "architecture": {
+    label: "paranoia as architecture",
+    text: "5 layers isn't clever, it's paranoid. If any layer touches what it shouldn't, the whole thing becomes untestable. Strict boundaries = debugging at 2am without crying.",
+  },
+  "the-hard-parts": {
+    label: "where the weekends went",
+    text: "Everything below took 80% of the time. The happy path works in a weekend. Making it survive Darija slang at midnight? That's the real job.",
+  },
+  "darija-wall": {
+    label: "47 regex patterns later...",
+    text: "Spent two days writing regex for Darija greetings. 47 patterns. Then I let a model decide and it just... worked. Sometimes the right abstraction is admitting you can't enumerate the problem.",
+  },
+  "one-number": {
+    label: "the 0.66 incident",
+    text: "Threshold passed all French test cases. Shipped it. Arabic user showed up → instant failure. Your test set's language distribution IS your coverage. Learned that the hard way.",
+  },
+  "results": {
+    label: "small n, big signal",
+    text: "28 messages. I know it's small. But they're hand-picked adversarial cases — the exact edges where routing breaks. A bigger random sample scores higher and teaches less.",
+  },
+  "constrained-decoding-value": {
+    label: "counter-intuitive finding",
+    text: "Constrained decoding doesn't help on yes/no — it only matters when you need structure. Most blog posts get this backwards. Proud I caught it.",
+  },
+  "latency-cost": {
+    label: "7 seconds is fine, actually",
+    text: "Sounds awful but WhatsApp isn't Slack. People send and check back later. The real constraint is cost per message, not latency. $0.00 routing > fast routing.",
+  },
+  "roadmap": {
+    label: "if I started over",
+    text: "I'd begin with the schema system. The two gates were the MVP — the real product is 'add any decision without touching generation code.'",
+  },
+  "stack": {
+    label: "boring on purpose",
+    text: "Nothing exotic. This runs on a single VPS in Morocco, not a Kubernetes cluster. Boring tech is maintainable tech. That's the whole philosophy.",
+  },
 };
 
 /* ─── Breakout renderer ────────────────────────────────────────────── */
@@ -169,8 +193,8 @@ export default function AgencyBrainPage() {
                 {/* Personal side note */}
                 {sideNotes[item.id] && (
                   <div className="cs-note">
-                    <span className="cs-note-label">📝 Side note — {item.label}</span>
-                    <p>{sideNotes[item.id]}</p>
+                    <span className="cs-note-label">{sideNotes[item.id].label}</span>
+                    <p>{sideNotes[item.id].text}</p>
                   </div>
                 )}
 
