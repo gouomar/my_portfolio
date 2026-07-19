@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import rehypePrettyCode from "rehype-pretty-code";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 
 export const metadata: Metadata = {
   title: "Agency Brain — Case Study",
@@ -44,8 +45,18 @@ const sideNotes: Record<string, string> = {
 /* ─── Breakout renderer ────────────────────────────────────────────── */
 
 function BreakoutBlock({ content }: { content: string }) {
+  const isMermaid = content.includes("```mermaid");
   const codeMatch = content.match(/```(?:\w*)\n([\s\S]*?)```/);
   const code = codeMatch ? codeMatch[1] : content;
+
+  if (isMermaid) {
+    return (
+      <div className="cs-breakout">
+        <MermaidDiagram chart={code} />
+      </div>
+    );
+  }
+
   return (
     <div className="cs-breakout">
       <pre><code>{code}</code></pre>
@@ -57,13 +68,10 @@ function BreakoutBlock({ content }: { content: string }) {
 
 function createComponents(breakouts: { anchor: string; content: string }[]) {
   return {
-    div: (props: React.ComponentProps<"div"> & { "data-breakout"?: string }) => {
-      const anchor = props["data-breakout"];
-      if (anchor) {
-        const b = breakouts.find((x) => x.anchor === anchor);
-        if (b) return <BreakoutBlock content={b.content} />;
-      }
-      return <div {...props} />;
+    BreakoutMarker: (props: { anchor: string }) => {
+      const b = breakouts.find((x) => x.anchor === props.anchor);
+      if (b) return <BreakoutBlock content={b.content} />;
+      return null;
     },
   };
 }

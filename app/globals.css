@@ -492,6 +492,15 @@
     padding: 0;
   }
 
+  .cs-mermaid {
+    overflow-x: auto;
+  }
+
+  .cs-mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
   /* ── Right sidebar ───────────────────────────────────────────────── */
   .cs-sidebar {
     display: none;
