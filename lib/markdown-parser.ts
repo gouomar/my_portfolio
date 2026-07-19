@@ -105,11 +105,10 @@ export function stripCustomTags(markdown: string): string {
   // Remove <Aside> blocks completely (rendered in rail)
   cleaned = cleaned.replace(/<Aside\s+anchor="[^"]+"\s+title="[^"]+">([\s\S]*?)<\/Aside>/g, "");
 
-  // Remove <Breakout> blocks — they'll be rendered inline via the page component
-  // Leave a divider marker so we know where they were
+  // Remove <Breakout> blocks — replace with a marker component MDX will route
   cleaned = cleaned.replace(
     /<Breakout\s+anchor="([^"]+)">([\s\S]*?)<\/Breakout>/g,
-    (_, anchor) => `\n<div data-breakout="${anchor}" />\n`
+    (_, anchor) => `\n<BreakoutMarker anchor="${anchor}" />\n`
   );
 
   // Convert {#id} into an anchor div above the heading
