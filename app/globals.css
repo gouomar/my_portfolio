@@ -517,6 +517,7 @@
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--color-surface-0);
+    transition: opacity 250ms ease;
   }
 
   .cs-toc-label {
@@ -559,6 +560,114 @@
   .cs-toc-sub a {
     font-size: var(--text-xs);
     color: var(--color-overlay);
+  }
+
+  /* ── Sentinel: invisible marker at original TOC position ─────────── */
+  .cs-toc-sentinel {
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* Hide original TOC when floating version is active */
+  .cs-toc--hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 250ms ease;
+  }
+
+  /* ── Floating left-side TOC ──────────────────────────────────────── */
+  .cs-toc-float {
+    position: fixed;
+    top: 50%;
+    left: 2rem;
+    transform: translateY(-50%) translateX(-20px);
+    max-width: 200px;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 350ms ease,
+      transform 350ms ease;
+    z-index: 40;
+  }
+
+  .cs-toc-float--visible {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+    pointer-events: auto;
+  }
+
+  .cs-toc-float-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-overlay);
+    margin-bottom: 0.75rem;
+  }
+
+  .cs-toc-float-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-left: 1px solid var(--color-surface-0);
+  }
+
+  .cs-toc-float-item {
+    position: relative;
+  }
+
+  .cs-toc-float-item a {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-overlay);
+    text-decoration: none;
+    padding: 0.35rem 0 0.35rem 0.75rem;
+    transition: color 150ms ease;
+  }
+
+  .cs-toc-float-item a:hover {
+    color: var(--color-accent);
+  }
+
+  .cs-toc-float-sub {
+    padding-left: 0.5rem;
+  }
+
+  .cs-toc-float-sub a {
+    font-size: 0.65rem;
+  }
+
+  /* Active section highlight */
+  .cs-toc-float-active a {
+    color: var(--color-accent);
+  }
+
+  .cs-toc-float-active::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--color-accent);
+    border-radius: 1px;
+  }
+
+  /* Hide floating TOC on small screens and when not enough left space */
+  @media (max-width: 1439px) {
+    .cs-toc-float {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cs-toc--hidden {
+      transition: none;
+    }
+    .cs-toc-float {
+      transition: none;
+    }
   }
 
   /* Side blocks (notes + asides together) */

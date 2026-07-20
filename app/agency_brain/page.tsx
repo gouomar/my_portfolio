@@ -6,6 +6,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
+import { StickyTOC } from "@/components/StickyTOC";
 
 export const metadata: Metadata = {
   title: "Agency Brain — Case Study",
@@ -173,17 +174,8 @@ export default function AgencyBrainPage() {
 
         {/* ── RIGHT: TOC + Side Notes + Asides ────────────────── */}
         <aside className="cs-sidebar">
-          {/* TOC */}
-          <nav className="cs-toc">
-            <span className="cs-toc-label">On this page</span>
-            <ul className="cs-toc-list">
-              {toc.map((item) => (
-                <li key={item.id} className={item.level === 3 ? "cs-toc-sub" : ""}>
-                  <a href={`#${item.id}`}>{item.label}</a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          {/* TOC — handles sticky scroll behavior */}
+          <StickyTOC toc={toc} />
 
           {/* Side notes + asides interleaved by section */}
           {toc
