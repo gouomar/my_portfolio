@@ -23,7 +23,7 @@ export const site = {
   /** The three right-column sections, in scroll order. */
   nav: [
     { id: "about", label: "About" },
-    { id: "experience", label: "Experience" },
+    { id: "education", label: "Education" },
     { id: "projects", label: "Projects" },
   ],
 } as const;
