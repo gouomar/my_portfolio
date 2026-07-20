@@ -1,10 +1,8 @@
+import { parseMarkdownFile } from "@/lib/markdown-parser";
 import { MDXRemote } from "next-mdx-remote/rsc";
-import fs from "fs";
 import path from "path";
-import matter from "gray-matter";
 import remarkGfm from "remark-gfm";
 import rehypePrettyCode from "rehype-pretty-code";
-import rehypeSlug from "rehype-slug";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { StickyTOC } from "@/components/StickyTOC";
@@ -15,37 +13,40 @@ export const metadata: Metadata = {
     "A collision-free drone traffic controller that routes 25 drones through a 54-hub, 70-edge map to a single landing zone. Space-time A* solves the hardest map in ~55 ms — zero collisions by construction.",
 };
 
-/* ─── Helpers ──────────────────────────────────────────────────────── */
+/* ─── Side notes: personal commentary per section ──────────────────── */
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9 -]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
-}
-
-function extractTOC(markdown: string) {
-  const toc: { id: string; label: string; level: 2 | 3 }[] = [];
-  for (const line of markdown.split("\n")) {
-    const match = line.match(/^(#{2,3})\s+(.+)/);
-    if (match) {
-      const level = match[1].length as 2 | 3;
-      const label = match[2].trim();
-      toc.push({ id: slugify(label), label, level });
-    }
-  }
-  return toc;
-}
+const sideNotes: Record<string, { label: string; text: string }> = {
+  "the-problem": {
+    label: "gridlock",
+    text: "Everyone gets pathfinding. The real problem is scheduling: deciding who has to wait so someone else can move.",
+  },
+  "architecture": {
+    label: "boundaries",
+    text: "Pydantic validation at the edge means the A* engine never has to write a single 'if type != int' defense. It just trusts the input.",
+  },
+  "planning-one-drone": {
+    label: "emergent behavior",
+    text: "The coolest part of the project: I didn't write a convoy algorithm. They just naturally pipeline because of the reservation table.",
+  },
+  "move-takes-two-turns": {
+    label: "the visual lie",
+    text: "If the solver says a drone takes 2 turns, but the UI snaps it there in 1 turn, the visual is lying. Synchronizing the 3D renderer to the solver's dilated time was surprisingly tricky.",
+  },
+  "compass": {
+    label: "the heuristic",
+    text: "Standard A* distance heuristics fail here because time != distance. A backwards Dijkstra search solves the exact 'turns-to-goal' cost perfectly.",
+  },
+  "does-it-work": {
+    label: "guarantees",
+    text: "Zero collisions isn't a hope, it's a structural guarantee of the reservation system. Every conflict is a reservation miss.",
+  },
+};
 
 /* ─── Page ──────────────────────────────────────────────────────────── */
 
 export default function FlyInPage() {
   const mdPath = path.join(process.cwd(), "content", "projects", "fly-in.mdx");
-  const raw = fs.readFileSync(mdPath, "utf-8");
-  const { content } = matter(raw);
-  const toc = extractTOC(content);
+  const { content, toc, asides } = parseMarkdownFile(mdPath);
 
   return (
     <div className="cs-page">
@@ -103,7 +104,6 @@ export default function FlyInPage() {
                 mdxOptions: {
                   remarkPlugins: [remarkGfm],
                   rehypePlugins: [
-                    rehypeSlug,
                     [rehypePrettyCode, { theme: "catppuccin-mocha", keepBackground: false }],
                   ],
                 },
@@ -120,9 +120,40 @@ export default function FlyInPage() {
           </footer>
         </main>
 
-        {/* ── RIGHT: TOC ─────────────────────────────────────── */}
+        {/* ── RIGHT: TOC + Side Notes + Asides ────────────────── */}
         <aside className="cs-sidebar">
+          {/* TOC — handles sticky scroll behavior */}
           <StickyTOC toc={toc} />
+
+          {/* Side notes + asides interleaved by section */}
+          {toc
+            .filter((item) => sideNotes[item.id] || asides.find((a) => a.anchor === item.id))
+            .map((item) => (
+              <div key={item.id} className="cs-side-block" data-section={item.id}>
+                {/* Personal side note */}
+                {sideNotes[item.id] && (
+                  <div className="cs-note">
+                    <span className="cs-note-label">{sideNotes[item.id].label}</span>
+                    <p>{sideNotes[item.id].text}</p>
+                  </div>
+                )}
+
+                {/* Aside data (tables etc) */}
+                {asides.find((a) => a.anchor === item.id) && (
+                  <div className="cs-aside-card">
+                    <span className="cs-aside-title">
+                      {asides.find((a) => a.anchor === item.id)!.title}
+                    </span>
+                    <div className="cs-aside-body prose-case">
+                      <MDXRemote
+                        source={asides.find((a) => a.anchor === item.id)!.content}
+                        options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
         </aside>
       </div>
     </div>
