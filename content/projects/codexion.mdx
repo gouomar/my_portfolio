@@ -16,7 +16,7 @@ _Five coders. Five dongles. Two hands each. Nobody starves, nobody deadlocks._
 
 The interesting work here isn't the metaphor. It's the **orchestration**: taking isolated, chaotic moving pieces and defining the boundaries that let them run in parallel and just _work_ - no lock a thread doesn't need, no wait a thread can't wake from, no failure mode the reaper can't see.
 
-## The Problem
+## The Problem {#the-problem}
 
 Picture five coders around a circular table in a loud co-working space. In the center sits a powerful Quantum Compiler, but to use it a coder has to plug in **two USB dongles at once** - the one to their left and the one to their right. There are only five dongles on the table. And if a coder goes too long without compiling, they burn out from frustration and the whole simulation halts instantly.
 
@@ -24,7 +24,7 @@ Underneath the metaphor this is the classic concurrency problem: independent thr
 
 I designed the architecture on paper before writing a single line of code. If the foundation is flawed, the threads collapse under pressure. If the boundaries are right, true concurrency emerges effortlessly.
 
-## How It Works
+## How It Works {#how-it-works}
 
 You define the constraints at launch - how many coders, how long until burnout, how long compiling and debugging take. Each coder spawns as a fully independent thread and tries to survive the gauntlet. Hit the required number of compiles and everyone goes home; introduce a bottleneck and someone eventually starves, at which point a dedicated monitor thread catches it and shuts the simulation down cleanly.
 
@@ -43,11 +43,13 @@ Each coder cycles through a fixed state loop:
 └───────────┘    table & on cooldown)    └───────────────┘
 ```
 
-## Architecture
+## Architecture {#architecture}
 
 I split the system into three boundaries on paper before coding: an **orchestration layer** that handles setup and teardown, a **global control layer** holding shared read-only state and the monitor, and the **concurrency engine** where the actual coder threads and dongle locks live. Keeping these strictly separated is the whole game - it means each thread only ever touches the resources it's explicitly responsible for.
 
 ![Codexion architecture: three layers - an orchestration layer (parse, allocate, spawn, join), a global control layer (read-only rules + the monitor thread), and the concurrency engine where coder threads and dongle locks live.](/diagrams/codexion.svg)
+
+<Aside anchor="architecture" title="Layer Roles">
 
 | Component | Role | Mechanism |
 |-----------|------|-----------|
@@ -55,6 +57,8 @@ I split the system into three boundaries on paper before coding: an **orchestrat
 | `t_coder` | Per-thread state, isolated | flat heap array, one struct per thread |
 | `t_dongle` | Shared resource, one per coder | mutex + condition variable |
 | Monitor | Burnout detection | independent polling thread |
+
+</Aside>
 
 **Three decisions shaped this, each chosen over an obvious alternative:**
 
@@ -64,31 +68,33 @@ I split the system into three boundaries on paper before coding: an **orchestrat
 
 **A pre-calculated circular map over runtime lookups.** Coders don't compute which dongles are theirs during the simulation. At init, each coder receives direct pointers to its left dongle (`dongles[i]`) and right dongle (`dongles[(i+1) % N]`). The routing is solved once upfront so the hot loop spends zero cycles figuring out who owns what.
 
-## The Hard Parts
+## The Hard Parts {#the-hard-parts}
 
 You can't drop `while(1)` into five threads and hope. A naive loop freezes or crashes in milliseconds. Four problems had to be solved deliberately.
 
-### The Deadlock Dance
+### The Deadlock Dance {#the-deadlock-dance}
 
 All five coders reach for their left dongle at the same instant. Each grabs one. Now each turns for their right dongle - and their neighbor is holding it. Nobody can compile, nobody will let go. The program freezes forever.
 
 The fix is asymmetry. Even-numbered coders grab their _right_ dongle first, odd-numbered coders grab their _left_. That mechanically guarantees at least one coder secures both dongles, breaking the circular-wait condition that deadlock depends on.
 
-### Melting the CPU vs. Going to Sleep
+### Melting the CPU vs. Going to Sleep {#melting-the-cpu}
 
 A coder waiting on a dongle could just spin - `while(!available);` - but that pins a core at 100% and drags the whole machine down. Instead, waiting coders sleep on a POSIX condition variable (`pthread_cond_wait`), freeing the CPU entirely. When a neighbor drops a dongle, it broadcasts a wake signal. Because the OS occasionally wakes threads for no reason (spurious wakeups), the sleep sits inside a strict `while`-loop condition check so a thread that wakes early simply goes back to sleep.
 
-### C Has No Priority Queue
+### C Has No Priority Queue {#priority-queue}
 
 The simulation needs two schedulers for the dongle waiting rooms: FIFO (first arrival wins) and EDF (earliest deadline first - the coder closest to burning out wins). C ships no priority queue, so I built a min-heap from scratch. When several coders wake for a freed dongle, the heap selects the single most desperate one; the rest go straight back to sleep.
 
-### The Grim Reaper
+### The Grim Reaper {#the-grim-reaper}
 
 A thread asleep on a lock can't track its own burnout deadline - it's asleep. So a dedicated monitor thread does nothing but poll the coder array every few milliseconds, comparing current time against each coder's last-compile time. The instant a gap exceeds the limit, it sets the global stop flag and shuts the simulation down within a tight window.
 
-## Does It Actually Work?
+## Does It Actually Work? {#does-it-work}
 
 The correctness bar for a concurrency toy is not "it ran once" - it's "it survives being pounded on by a race detector." Everything below was measured under a stress harness that spawns edge-case inputs and re-runs the simulation until either an invariant fires or the run count clears the threshold.
+
+<Aside anchor="does-it-work" title="Validation">
 
 | Property | Result |
 |---|---|
@@ -97,15 +103,19 @@ The correctness bar for a concurrency toy is not "it ran once" - it's "it surviv
 | Race conditions (`-fsanitize=thread`) | **0 detected** across the stress harness |
 | Determinism under stress | No deadlock, no starvation, no crash after thousands of runs |
 
+</Aside>
+
 The invariants that had to hold on _every_ run - no coder ever compiles without holding both its dongles; no dongle is ever held by two coders at once; no coder is ever missed by the monitor - are the correctness contract this project exists to prove.
 
-## What I'd Do Differently
+## What I'd Do Differently {#roadmap}
 
 - **Swap `gettimeofday` for `CLOCK_MONOTONIC`.** The current clock can drift if the host OS syncs its system time mid-run; a monotonic clock would make timing bulletproof regardless of what the OS does underneath.
 - **Make the scheduler pluggable rather than compile-time selected**, so FIFO and EDF could be swapped or compared at runtime instead of via a rebuild.
 - **Instrument the reaper's poll cadence.** ~2 ms detection is good, but adaptive polling (tighter when a coder is near its deadline) would cut the tail without pinning the monitor thread's CPU.
 
-## Stack & Links
+
+
+<Aside anchor="stack" title="Stack at a glance">
 
 | | |
 |---|---|
@@ -114,3 +124,5 @@ The invariants that had to hold on _every_ run - no coder ever compiles without 
 | Data structures | Min-heap (hand-rolled), flat heap arrays |
 | Validation | Valgrind, ThreadSanitizer (`-fsanitize=thread`) |
 | Source | [github.com/gouomar/codexion](https://github.com/gouomar/codexion) |
+
+</Aside>
