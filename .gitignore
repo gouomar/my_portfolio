@@ -49,4 +49,5 @@ next-env.d.ts
 logo.png
 
 WORKLOG.md
-*.md
+project-doc-template.md
+STUDY_CASE.md
