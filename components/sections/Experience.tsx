@@ -16,7 +16,7 @@ function Logo1337() {
 
 export function Experience() {
   return (
-    <Section id="experience" title="Experience">
+    <Section id="education" title="Education">
       <ol className="space-y-12">
         {experience.map((entry) => (
           <li key={`${entry.period}-${entry.org}`} className="group relative">

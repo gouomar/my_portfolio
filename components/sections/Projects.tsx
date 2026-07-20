@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Section } from "@/components/sections/Section";
 import { TagPills } from "@/components/Tags";
 import { getFeaturedProjects } from "@/lib/content";
@@ -33,6 +34,13 @@ const clubProjects = [
  * A vertical stack of 3 featured project rows. Each row links directly to
  * the GitHub repo; no detail pages.
  */
+/* Map content slugs (kebab-case) to page routes */
+const slugToRoute: Record<string, string> = {
+  "agency-brain": "/agency_brain",
+  codexion: "/codexion",
+  "fly-in": "/fly-in",
+};
+
 export function Projects() {
   const projects = getFeaturedProjects();
 
@@ -58,20 +66,18 @@ export function Projects() {
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="flex items-baseline gap-1 font-medium text-text">
-                  <a
-                    href={p.links.github}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={slugToRoute[p.slug] ?? `/${p.slug}`}
                     className="transition-colors group-hover:text-accent motion-reduce:transition-none after:absolute after:inset-0"
-                    aria-label={`${p.title} - view on GitHub`}
+                    aria-label={`${p.title} - view case study`}
                   >
                     {p.title}
-                  </a>
+                  </Link>
                   <span
                     aria-hidden="true"
-                    className="external-arrow text-[0.85em] text-accent"
+                    className="text-[0.85em] text-accent"
                   >
-                    ↗
+                    →
                   </span>
                 </h3>
 

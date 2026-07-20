@@ -16,13 +16,13 @@ _Rush hour on a one-lane mountain road, except the cars are drones and the road 
 
 The interesting work here isn't A*. It's the **orchestration**: turning what looks like a pathfinding problem into a scheduling problem - coordinating who moves on which turn so nobody collides and nobody idles longer than they must.
 
-## The Problem
+## The Problem {#the-problem}
 
 Picture rush hour on a one-lane mountain road. There are single-car bridges, a few tunnels that take twice as long to cross, and a hard cap on how many cars fit in each village along the way. Send everyone at once and you get gridlock. Send them one at a time and you waste the whole day. Someone has to decide who moves, when.
 
 Fly-In is that traffic controller for drones. Given a graph where **hubs have strict occupancy caps**, **edges have throughput caps**, and some zones are **"restricted"** (two turns to cross), it moves N drones from a single start hub to a single end hub. Every hub and every edge is a contended resource. The real problem isn't pathfinding - it's _scheduling_.
 
-## How It Works
+## How It Works {#how-it-works}
 
 You write a map in a small `key: value [metadata]` language, run the CLI, and get a turn-by-turn movement log. Add `--render` for a 3D replay.
 
@@ -39,11 +39,13 @@ You write a map in a small `key: value [metadata]` language, run the CLI, and ge
                                                       └────────────┘
 ```
 
-## Architecture
+## Architecture {#architecture}
 
 The system is designed on paper before code: three hard boundaries - parsing, the planning engine, and presentation - each owning one job and handing off a single validated object.
 
 ![Fly-In architecture: three layers - parsing (map.txt → Pydantic WorldConfig), the planning engine (backwards-Dijkstra heuristic + space-time A* + reservation tables → Solution), and presentation (CLI log + optional Ursina 3D replay).](/diagrams/fly-in.svg)
+
+<Aside anchor="architecture" title="Design Decisions">
 
 | Decision | Why this, not that |
 |---|---|
@@ -51,17 +53,19 @@ The system is designed on paper before code: three hard boundaries - parsing, th
 | Reservation tables keyed by `(place, turn)` | O(1) conflict checks during search instead of re-scanning every other drone's path |
 | Pydantic v2 for every model | Validation lives in the type layer, so the engine never defends against malformed input |
 
-## The Hard Parts
+</Aside>
+
+## The Hard Parts {#the-hard-parts}
 
 You can't drop 25 drones into a graph and hope. Three problems had to be solved on purpose.
 
-### Planning One Drone at a Time
+### Planning One Drone at a Time {#planning-one-drone}
 
 The honest approach is to plan all drones together - but the search space is the _product_ of every drone's options, and it detonates past a handful of agents. The fix borrows from cooperative pathfinding: plan `D1` alone, **stamp its route into a shared reservation table** (this node is taken at turn 7, this edge at turn 8), then plan `D2` so it must respect those stamps, and so on.
 
 The elegant side effect is **emergent pipelining**. When `D2` wants the same optimal corridor as `D1`, the reservations force it to shift its moves back by exactly one turn - a perfect convoy forms with no scheduler ever written for it. The trade-off is real and I name it plainly: prioritized planning is greedy, not globally optimal.
 
-### When a Move Takes Two Turns
+### When a Move Takes Two Turns {#move-takes-two-turns}
 
 A normal graph search treats every hop as one step. Restricted zones break that - they cost two turns, and the search runs over _space-time_, where reservations are indexed by the turn. A restricted move isn't `(u,t) → (v,t+1)`; it's a dilated transition that holds the edge mid-flight and only lands a turn later:
 
@@ -76,13 +80,15 @@ A normal graph search treats every hop as one step. Restricted zones break that 
 
 The renderer had to mirror this exactly, or the visual would lie about where a drone is. That meant a small state machine in the drone controller - `move_to_midpoint → at_midpoint → continue_from_midpoint` - so a drone physically pauses halfway across a restricted link for a turn before completing.
 
-### A Compass That Counts Turns, Not Distance
+### A Compass That Counts Turns, Not Distance {#compass}
 
 A* is only as good as its heuristic, and straight-line distance is the wrong compass here: cost isn't geometric when one tile costs double. So before any drone moves, a **backwards Dijkstra from the goal** precomputes the true minimum _turn_ cost from every hub. That keeps the heuristic admissible - never overestimating - so A* stays both correct and fast. Priority zones ride along as a tie-breaker baked into the queue key `(f, t, -priority_count, u)`: among equal-arrival routes, the planner steers through more priority hubs without ever sacrificing speed.
 
-## Does It Actually Work?
+## Does It Actually Work? {#does-it-work}
 
 Measured on the _Challenger_ map ("The Impossible Dream"):
+
+<Aside anchor="does-it-work" title="Validation metrics">
 
 | Metric | Value |
 |---|---|
@@ -94,15 +100,19 @@ Measured on the _Challenger_ map ("The Impossible Dream"):
 | Solve time (warm, 25 sequential space-time searches) | ~55 ms |
 | Per-drone state space (H × T ≈ 54 × 43) | ~2,300 states - the horizon caps memory, not the map |
 
+</Aside>
+
 The full ladder - 10 maps from _easy_ to _challenger_ - solves in 4, 5, 6 / 8, 11, 7 / 14, 18, 26 / 43 turns respectively. Every map is solved deterministically: same inputs, same schedule, every run.
 
-## What I'd Do Differently
+## What I'd Do Differently {#roadmap}
 
 - **Cache one search, reuse it.** Identical drones re-run A* from scratch each time; the reservation-aware search could be incremental.
 - **Add a fallback to the greedy order.** When prioritized planning paints a drone into a corner, a windowed re-plan or priority reshuffle would recover optimality the current single pass can't.
 - **Decouple render timing from solve.** The 3D layer reconstructs transit state by replaying turns; emitting richer per-turn events from the engine would simplify it.
 
-## Stack & Links
+
+
+<Aside anchor="stack" title="Stack at a glance">
 
 | | |
 |---|---|
@@ -112,3 +122,5 @@ The full ladder - 10 maps from _easy_ to _challenger_ - solves in 4, 5, 6 / 8, 1
 | Visualizer | Ursina (3D), `.glb` assets |
 | Tooling | `uv` |
 | Source | [github.com/gouomar/fly-in](https://github.com/gouomar/fly-in) |
+
+</Aside>
