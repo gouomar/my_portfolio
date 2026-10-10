@@ -1,31 +1,43 @@
 /**
- * Identity the single source of truth for who this site is about. Used by
- * the left panel, the footer, and page metadata so nothing drifts.
+ * Everything the site says about you, in one place. Pages read from here so
+ * the sidebar, homepage and link previews never drift apart.
  */
 export const site = {
   name: "Omar Gourragui",
-  /** The single highest-leverage line on the site (Step 0 decision). */
-  role: "Backend & Systems Engineer",
+  role: "AI Engineer",
   tagline:
     "I like the moment where many independent parts have to behave as one coherent thing.",
-  /** Short description for metadata / social cards. */
   description:
-    "CPGE math and physics, then low-level systems at 1337. I design the boundaries and coordination that let many independent parts behave as one system.",
-  location: "Rabat, Morocco",
+    "AI engineer. I build systems where correctness under concurrency matters more than how the demo looks.",
   email: "gomar@student.1337.ma",
-  /** Canonical URL set NEXT_PUBLIC_SITE_URL on Vercel; this is the fallback. */
+  /** Canonical URL — set NEXT_PUBLIC_SITE_URL on Vercel; this is the fallback. */
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://omargourragui.vercel.app",
   socials: {
     github: "https://github.com/gouomar",
-    // TODO(Omar): confirm your real LinkedIn URL this is a placeholder.
     linkedin: "https://www.linkedin.com/in/gourragui-omar-a8879531a/",
   },
-  /** The three right-column sections, in scroll order. */
+  /** This site's own code. */
+  source: "https://github.com/gouomar/my_portfolio",
   nav: [
     { id: "about", label: "About" },
+    { id: "work", label: "Selected work" },
+    { id: "other", label: "Other projects" },
     { id: "education", label: "Education" },
-    { id: "projects", label: "Projects" },
   ],
 } as const;
 
-export type NavItem = (typeof site.nav)[number];
+export const otherProjects = [
+  {
+    name: "MedicAtlas",
+    blurb: "unified health history from scanned medical reports",
+  },
+  {
+    name: "Arabic OCR",
+    blurb: "a CNN built from scratch for handwritten Arabic letters",
+  },
+] as const;
+
+export const education = [
+  { school: "1337 / UM6P — Systems Programming", period: "2025–present" },
+  { school: "CPGE MP — Maths & Physics", period: "2023–2025" },
+] as const;

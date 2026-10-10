@@ -1,29 +1,35 @@
-import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { CursorGlow } from "@/components/CursorGlow";
+import type { Metadata, Viewport } from "next";
+import { Fraunces, IBM_Plex_Mono, Work_Sans } from "next/font/google";
 import { site } from "@/lib/site";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const serif = Fraunces({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  axes: ["opsz"],
+  display: "swap",
+});
+
+const sans = Work_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const mono = IBM_Plex_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
+  weight: "400",
   display: "swap",
 });
 
-const pageTitle = `${site.name} - ${site.role}`;
+const pageTitle = `${site.name} — ${site.role}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
     default: pageTitle,
-    template: `%s - ${site.name}`,
+    template: `%s — ${site.name}`,
   },
   description: site.description,
   authors: [{ name: site.name, url: site.url }],
@@ -43,6 +49,11 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#F6F3EC",
+  colorScheme: "light",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,12 +62,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
+      className={`${serif.variable} ${sans.variable} ${mono.variable}`}
     >
       <body>
-        <CursorGlow />
         {children}
-        <Analytics />
       </body>
     </html>
   );
